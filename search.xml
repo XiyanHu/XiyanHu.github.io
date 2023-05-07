@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<search>
+  <entry>
+    <title>Deploy Memos on AWS for fun</title>
+    <url>/2023/05/01/deploy-memos-on-AWS-for-fun/</url>
+    <content><![CDATA[<p>Memos <a href="https://github.com/usememos/memos">Github Link</a> is a lightweight, self-hosted memo hub. Open Source. Currently there are docs supporting manage hosting <a href="https://usememos.com/docs/install/managed">link</a> on Render.com, Fly.io, PikaPods.com.</p>
+<p>I tried to deploy Memos app on AWS with ECR, ECS Fargate and Application Load balancer(ALB). JUST FOR FUN. Because it is too <strong>EXPENSIVE</strong>. Memo is a long-lived app and almost certainly needs a load balancer. ALB by itself will cost $16.2&#x2F;month.<br>My setup has no HTTPS, no CDK. It is against a lot of best practices :).</p>
+<p>I will recommend using Fly.io</p>
+<ul>
+<li>You can manage the whole thing at $0! </li>
+<li>Automatic db backup to S3 bucket with easy setup</li>
+<li>Easy to upgrade</li>
+</ul>
+<p>I quickly moved to Fly.io after I finished this blog :)</p>
+<p>Assume you already have a AWS account.</p>
+<h3 id="Local-code-change"><a href="#Local-code-change" class="headerlink" title="Local code change"></a>Local code change</h3><ul>
+<li>Pull the git repo to local environment <a href="https://github.com/usememos/memos">https://github.com/usememos/memos</a></li>
+<li>If you want to automatically backup db file to a S3 bucket<ul>
+<li>Go to AWS Console S3 page, create a bucket. Give it a name, for example, mymemos</li>
+<li>Modify your local repo following this <a href="https://github.com/usememos/memos/compare/main...XiyanHu:memos:blog">commit example</a>, replace litestream.yml file with your information<ul>
+<li>This is basically copy paste from <a href="https://github.com/hu3rror/memos-on-fly">https://github.com/hu3rror/memos-on-fly</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h3 id="Deploy-to-ECR"><a href="#Deploy-to-ECR" class="headerlink" title="Deploy to ECR"></a>Deploy to ECR</h3><ul>
+<li>Search ECR in AWS console. Click Create repository, give it a name, for example, mymemos</li>
+<li>You will see your docker on the dashboard. Click on your docker repository</li>
+<li>Click View Push Commands, and follow the instruction there to deploy your app<img src="/2023/05/01/deploy-memos-on-AWS-for-fun/push_command_screenshot.png" class="" title="This is an example image"></li>
+</ul>
+<h3 id="Create-ALB"><a href="#Create-ALB" class="headerlink" title="Create ALB"></a>Create ALB</h3><ul>
+<li>Search load balancers in AWS console. Find EC2 and on left panel click Load Balancers</li>
+<li>Click Create load balancer, choose Application Load Balancer<ul>
+<li>Give it a name, choose VPC and Security groups</li>
+<li>Under Listeners and routing tab, click Create target group <ul>
+<li>Choose IP addresses as target type</li>
+<li>Protocol HTTP and Port 5230</li>
+</ul>
+</li>
+<li>Select the target group just created</li>
+<li>Click Create Load Balancer</li>
+</ul>
+</li>
+</ul>
+<h3 id="Config-Security-group"><a href="#Config-Security-group" class="headerlink" title="Config Security group"></a>Config Security group</h3><ul>
+<li>I only have a default security group, select it. Under Inbound rules tab, click Edit Inbound rules</li>
+<li>Add Type Custom TCP, Port Range 5230, Source 0.0.0.0&#x2F;0</li>
+<li>Add Type HTTP, Port Range 80, Source 0.0.0.0&#x2F;0</li>
+<li>Save it and go to outbound rules, Add Type Custom TCP, Port Range 5230, Source 0.0.0.0&#x2F;0</li>
+</ul>
+<h3 id="Config-ECS"><a href="#Config-ECS" class="headerlink" title="Config ECS"></a>Config ECS</h3><ul>
+<li>Search ECS in AWS console, on left panel, click Task definitions</li>
+<li>Click Create new task definition</li>
+<li>Set Image Url to XXXXXX.dkr.ecr.us-east-1.amazonaws.com&#x2F;mymemos, you can get it from ECR page</li>
+<li>Set port tp 5230 with is the default in memos app</li>
+<li>Click Create if you don’t want to do other fancy settings<img src="/2023/05/01/deploy-memos-on-AWS-for-fun/task_definition.png" class="" title="This is an example image"></li>
+<li>Click Cluster on left panel, then Create cluster<ul>
+<li>Set Cluster name, add VPC and subnet</li>
+<li>Click Create</li>
+</ul>
+</li>
+<li>Select the cluster you created<ul>
+<li>If you want to save money, consider <a href="https://aws.amazon.com/blogs/aws/aws-fargate-spot-now-generally-available/">Fargate Spot</a>. 70% discount!!!</li>
+<li>Under Services Tab, click Create<ul>
+<li>Under Deployment configuration, choose the family created in the previous step<img src="/2023/05/01/deploy-memos-on-AWS-for-fun/service_deployment_config.png" class="" title="This is an example image"></li>
+</ul>
+</li>
+<li>Under Load Balancer, choose the ALB and target group created in the previous step <img src="/2023/05/01/deploy-memos-on-AWS-for-fun/service_config_lb.png" class="" title="This is an example image"></li>
+<li>After service is created you should see a task running. </li>
+<li>Go to your broswer with your ALB DNS name you should see the memo homepage let you to create an user<img src="/2023/05/01/deploy-memos-on-AWS-for-fun/alb.png" class="" title="This is an example image">
+<img src="/2023/05/01/deploy-memos-on-AWS-for-fun/signin.png" class="" title="This is an example image"></li>
+<li>In the s3 bucket you should see a folder name with memos_prod.db&#x2F;.</li>
+</ul>
+</li>
+</ul>
+<h3 id="What’s-Next"><a href="#What’s-Next" class="headerlink" title="What’s Next"></a>What’s Next</h3><ul>
+<li>Consider replace ALB with API Gateway + CloudMap to cut cost : <a href="https://awsteele.com/blog/2022/10/15/cheap-serverless-containers-using-api-gateway.html">https://awsteele.com/blog/2022/10/15/cheap-serverless-containers-using-api-gateway.html</a></li>
+<li>Move to Fly.io :)</li>
+</ul>
+]]></content>
+      <tags>
+        <tag>test</tag>
+      </tags>
+  </entry>
+</search>
