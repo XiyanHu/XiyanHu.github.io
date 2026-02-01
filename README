@@ -1,0 +1,6 @@
+# Local development
+hexo generate && hexo server
+# Deploy to GitHub Pages
+hexo deploy
+# Create a new post
+hexo new post 
